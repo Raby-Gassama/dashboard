@@ -3,13 +3,13 @@ import pandas as pd
 import plotly.express as px
 import numpy as np
 
-@st.cache_data
-df load_data():
-st.write("Colonnes CSV chargées :", list(df.columns))
-    # 1. Chargement sans parse_dates
+ @st.cache_data
+def load_data():
+    # 1. On charge sans parse_dates pour éviter l’erreur KeyError
     df = pd.read_csv('Transactions_data_complet.csv')
-    # 2. Conversion manuelle du timestamp
+    # 2. On convertit manuellement le timestamp
     df['TransactionStartTime'] = pd.to_datetime(
+        df['TransactionStartTime'] = pd.to_datetime(
         df['TransactionStartTime'],
         format='%Y-%m-%dT%H:%M:%SZ',
         errors='coerce'
