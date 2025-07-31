@@ -5,8 +5,14 @@ import numpy as np
 
 @st.cache_data
 def load_data():
-    df = pd.read_csv('Transactions_data_complet.csv', parse_dates=['TransactionStartTime'])
-    df['TransactionStartTime'] = pd.to_datetime(df['TransactionStartTime'], errors='coerce')
+    # 1. Chargement sans parse_dates
+    df = pd.read_csv('Transactions_data_complet.csv')
+    # 2. Conversion manuelle du timestamp
+    df['TransactionStartTime'] = pd.to_datetime(
+        df['TransactionStartTime'],
+        format='%Y-%m-%dT%H:%M:%SZ',
+        errors='coerce'
+    )
     return df
 
 df = load_data()
