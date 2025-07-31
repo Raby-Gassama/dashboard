@@ -1,25 +1,22 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
-import numpy as np
 
-# (Optionnel) configure le titre et l’affichage large
-st.set_page_config(page_title="Dashboard Transactions", layout="wide")
+# Charge les données sans aucune conversion
+df = pd.read_csv("Transactions_data_complet.csv")
 
-@st.cache_data
-def load_data():
-    # 1. Charge sans parse_dates pour éviter les KeyError
-    df = pd.read_csv("Transactions_data_complet.csv")
-    # 2. Convertit manuellement la colonne ISO 8601 en datetime
+# Affiche les noms de colonnes et les cinq premières lignes
+st.write("🚀 Colonnes chargées :", list(df.columns))
+st.write("🔍 Coup d’œil sur les données :", df.head())
+
+# Maintenant seulement : convertir la date si la colonne existe
+if "TransactionStartTime" in df.columns:
     df["TransactionStartTime"] = pd.to_datetime(
         df["TransactionStartTime"],
         format="%Y-%m-%dT%H:%M:%SZ",
         errors="coerce",
     )
-    return df
-
-# Charge les données
-df = load_data()
+else:
+    st.error("💥 La colonne 'TransactionStartTime' est introuvable dans le CSV.")
 
 # Titre principal
 st.title("Dashboard Transactions – Projet Final")
