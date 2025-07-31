@@ -1,31 +1,37 @@
 import streamlit as st
 import pandas as pd
+import plotly.express as px
+import numpy as np
 
-# Charge les données sans aucune conversion
-df = pd.read_csv("Transactions_data_complet.csv")
+# Configuration optionnelle
+st.set_page_config(page_title="Dashboard Transactions", layout="wide")
 
-# Affiche les noms de colonnes et les cinq premières lignes
-st.write("🚀 Colonnes chargées :", list(df.columns))
-st.write("🔍 Coup d’œil sur les données :", df.head())
-
-# Maintenant seulement : convertir la date si la colonne existe
-if "TransactionStartTime" in df.columns:
-    df["TransactionStartTime"] = pd.to_datetime(
-        df["TransactionStartTime"],
-        format="%Y-%m-%dT%H:%M:%SZ",
-        errors="coerce",
+@st.cache_data
+def load_data():
+    # 1) Lecture du CSV
+    df = pd.read_csv("Transactions_data_complet.csv")
+    # 2) Conversion de la colonne 'Date' en datetime
+    df["Date"] = pd.to_datetime(
+        df["Date"],
+        format="%Y-%m-%d",
+        errors="coerce"
     )
-else:
-    st.error("💥 La colonne 'TransactionStartTime' est introuvable dans le CSV.")
+    return df
+
+# Chargement
+df = load_data()
 
 # Titre principal
 st.title("Dashboard Transactions – Projet Final")
 
 # ─── Sidebar : filtres ─────────────────────────────────────────────────────────
-min_date = df["TransactionStartTime"].min().date()
-max_date = df["TransactionStartTime"].max().date()
+min_date = df["Date"].min().date()
+max_date = df["Date"].max().date()
 date_range = st.sidebar.date_input(
-    "Période", [min_date, max_date], min_value=min_date, max_value=max_date
+    "Période",
+    [min_date, max_date],
+    min_value=min_date,
+    max_value=max_date,
 )
 
 amount_min = int(df["Amount"].min())
@@ -37,93 +43,88 @@ amount_range = st.sidebar.slider(
     (amount_min, amount_max),
 )
 
-fraud_options = list(df["FraudResult"].unique())
+fraud_options = list(df["FraudResult"].unique()) if "FraudResult" in df.columns else []
 fraud_selected = st.sidebar.multiselect(
-    "Statut de fraude", fraud_options, default=fraud_options
+    "Statut de fraude",
+    fraud_options,
+    default=fraud_options
 )
 
-# Filtrage
+# ─── Application des filtres ────────────────────────────────────────────────────
 mask = (
-    (df["TransactionStartTime"].dt.date >= date_range[0])
-    & (df["TransactionStartTime"].dt.date <= date_range[1])
-    & (df["Amount"] >= amount_range[0])
-    & (df["Amount"] <= amount_range[1])
-    & (df["FraudResult"].isin(fraud_selected))
+    (df["Date"].dt.date >= date_range[0]) &
+    (df["Date"].dt.date <= date_range[1]) &
+    (df["Amount"] >= amount_range[0]) &
+    (df["Amount"] <= amount_range[1])
 )
+if "FraudResult" in df.columns and fraud_selected:
+    mask &= df["FraudResult"].isin(fraud_selected)
+
 df_filtered = df[mask]
 
-# ─── Affichage de l’aperçu ────────────────────────────────────────────────────
+# ─── Aperçu ─────────────────────────────────────────────────────────────────────
 st.subheader("Aperçu des données filtrées")
 st.dataframe(df_filtered.head(10), use_container_width=True)
 
-# ─── 1. Distribution linéaire ────────────────────────────────────────────────
+# ─── 1. Distribution linéaire ─────────────────────────────────────────────────
 fig1 = px.histogram(
-    df_filtered,
-    x="Amount",
-    nbins=50,
-    title="Distribution des montants (linéaire)",
+    df_filtered, x="Amount", nbins=50,
+    title="Distribution des montants (linéaire)"
 )
 st.plotly_chart(fig1, use_container_width=True)
 
-# ─── 2. Distribution logarithmique ────────────────────────────────────────────
+# ─── 2. Distribution log ───────────────────────────────────────────────────────
 fig2 = px.histogram(
-    df_filtered,
-    x="Amount",
-    nbins=50,
-    title="Distribution des montants (échelle logarithmique)",
+    df_filtered, x="Amount", nbins=50,
+    title="Distribution des montants (log)"
 )
 fig2.update_xaxes(type="log")
 st.plotly_chart(fig2, use_container_width=True)
 
-# ─── 3. Transactions par statut de fraude ────────────────────────────────────
-fig3 = px.histogram(
-    df_filtered,
-    x="FraudResult",
-    title="Nombre de transactions par statut de fraude",
-)
-st.plotly_chart(fig3, use_container_width=True)
+# ─── 3. Transactions par statut de fraude (si présent) ─────────────────────────
+if "FraudResult" in df_filtered.columns:
+    fig3 = px.histogram(
+        df_filtered, x="FraudResult",
+        title="Nombre de transactions par statut de fraude"
+    )
+    st.plotly_chart(fig3, use_container_width=True)
 
-# ─── 4. Taux de fraude par canal ──────────────────────────────────────────────
-fraud_rate = (
-    df_filtered.groupby(["ChannelId", "FraudResult"])
-    .size()
-    .reset_index(name="Count")
-)
-fig4 = px.bar(
-    fraud_rate,
-    x="ChannelId",
-    y="Count",
-    color="FraudResult",
-    barmode="group",
-    title="Transactions par canal et statut de fraude",
-)
-st.plotly_chart(fig4, use_container_width=True)
+# ─── 4. Taux de fraude par canal ───────────────────────────────────────────────
+if {"ChannelId", "FraudResult"}.issubset(df_filtered.columns):
+    fraud_rate = (
+        df_filtered.groupby(["ChannelId", "FraudResult"])
+        .size()
+        .reset_index(name="Count")
+    )
+    fig4 = px.bar(
+        fraud_rate, x="ChannelId", y="Count", color="FraudResult",
+        barmode="group", title="Transactions par canal et statut de fraude"
+    )
+    st.plotly_chart(fig4, use_container_width=True)
 
-# ─── 5. Heatmap de corrélation ───────────────────────────────────────────────
+# ─── 5. Heatmap de corrélation ────────────────────────────────────────────────
 corr = df_filtered.select_dtypes(include=np.number).corr()
 fig5 = px.imshow(
-    corr,
-    text_auto=True,
-    title="Matrice de corrélation",
+    corr, text_auto=True, title="Matrice de corrélation"
 )
 st.plotly_chart(fig5, use_container_width=True)
 
-# ─── 6. Boxplot par catégorie de produit ────────────────────────────────────
-fig6 = px.box(
-    df_filtered,
-    x="ProductCategory",
-    y="Amount",
-    title="Distribution des montants par catégorie de produit",
-)
-st.plotly_chart(fig6, use_container_width=True)
+# ─── 6. Boxplot par catégorie de produit ──────────────────────────────────────
+if {"ProductCategory", "Amount"}.issubset(df_filtered.columns):
+    fig6 = px.box(
+        df_filtered, x="ProductCategory", y="Amount",
+        title="Montants par catégorie de produit"
+    )
+    st.plotly_chart(fig6, use_container_width=True)
 
-# ─── 7. Série temporelle journalière ─────────────────────────────────────────
-df_filtered["Date"] = df_filtered["TransactionStartTime"].dt.date
-ts = df_filtered.groupby("Date").size().reset_index(name="Count")
+# ─── 7. Série temporelle journalière ──────────────────────────────────────────
+ts = (
+    df_filtered.groupby(df_filtered["Date"].dt.date)
+    .size()
+    .reset_index(name="Count")
+)
 fig7 = px.line(
-    ts,
-    x="Date",
-    y="Count",
-    title="Nombre de transactions par jour",
+    ts, x="Date", y="Count",
+    title="Nombre de transactions par jour"
 )
 st.plotly_chart(fig7, use_container_width=True)
