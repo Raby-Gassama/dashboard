@@ -4,7 +4,8 @@ import plotly.express as px
 import numpy as np
 
 @st.cache_data
-def load_data():
+df load_data():
+st.write("Colonnes CSV chargées :", list(df.columns))
     # 1. Chargement sans parse_dates
     df = pd.read_csv('Transactions_data_complet.csv')
     # 2. Conversion manuelle du timestamp
